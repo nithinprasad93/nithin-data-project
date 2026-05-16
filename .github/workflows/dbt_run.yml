@@ -82,12 +82,14 @@ jobs:
         run: dbt docs generate --target ${{ github.event.inputs.target || 'prod' }}
 
       - name: Deploy dbt docs to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: dbt/target
-          destination_dir: dbt-docs
-          commit_message: "docs: update dbt docs [${{ github.run_id }}]"
+        run: |
+          cd dbt/target
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: update dbt docs [${{ github.run_id }}]"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
 
       - name: Compute duration
         id: duration
