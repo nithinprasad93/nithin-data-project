@@ -13,52 +13,13 @@ on:
 
 jobs:
   deploy:
-    name: Build and deploy Evidence.dev to Vercel
+    name: Trigger Vercel deploy
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: evidence
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: evidence/package-lock.json
-
-      - name: Install Evidence dependencies
-        run: npm ci
-
-      - name: Pull data from Snowflake
-        env:
-          # Evidence reads credentials via this naming convention
-          EVIDENCE_SOURCE__SNOWFLAKE__account:    ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          EVIDENCE_SOURCE__SNOWFLAKE__username:   ${{ secrets.SNOWFLAKE_USER_REPORTER }}
-          EVIDENCE_SOURCE__SNOWFLAKE__password:   ${{ secrets.SNOWFLAKE_PASSWORD_REPORTER }}
-          EVIDENCE_SOURCE__SNOWFLAKE__database:   NDIS_DB
-          EVIDENCE_SOURCE__SNOWFLAKE__schema:     MARTS
-          EVIDENCE_SOURCE__SNOWFLAKE__warehouse:  NDIS_WH
-          EVIDENCE_SOURCE__SNOWFLAKE__role:       NDIS_REPORTER
-          EVIDENCE_SOURCE__SNOWFLAKE__authenticator: userpass
-        run: npm run sources
-
-      - name: Build Evidence site
-        run: npm run build
-
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_EVIDENCE }}
-          working-directory: evidence
-          vercel-args: '--prod'
+      - name: Trigger Vercel deploy hook
+        run: curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
 
       - name: Notify Slack on success
         if: success()
@@ -66,7 +27,7 @@ jobs:
         with:
           payload: |
             {
-              "text": ":chart_with_upwards_trend: *Evidence.dev deployed*\nDashboard updated with today's data.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+              "text": ":chart_with_upwards_trend: *Evidence.dev deploy triggered*\nDashboard will update shortly.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
