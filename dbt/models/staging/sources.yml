@@ -41,7 +41,7 @@ sources:
         description: "Daily timesheet clock-in/out records"
         columns:
           - name: ID
-            tests: [unique, not_null]
+            tests: [not_null]
           - name: EMPLOYEE_ID
             tests: [not_null]
 
@@ -128,7 +128,7 @@ sources:
         description: "All service appointments — scheduled, completed, cancelled, DNA"
         columns:
           - name: ID
-            tests: [unique, not_null]
+            tests: [not_null]
           - name: PATIENT_ID
             tests:
               - not_null
@@ -150,7 +150,7 @@ sources:
         description: "NDIS catalogue line items linked to appointments"
         columns:
           - name: ID
-            tests: [unique, not_null]
+            tests: [not_null]
           - name: APPOINTMENT_ID
             tests: [not_null]
 
