@@ -8,8 +8,8 @@ sources:
     loader: python_ingestion
     loaded_at_field: _LOADED_AT
     freshness:
-      warn_after: {count: 25, period: hour}
-      error_after: {count: 49, period: hour}
+      warn_after: {count: 72, period: hour}
+      error_after: {count: 90, period: hour}
 
     tables:
       - name: eh_employees
@@ -85,8 +85,8 @@ sources:
     loader: python_ingestion
     loaded_at_field: _LOADED_AT
     freshness:
-      warn_after: {count: 25, period: hour}
-      error_after: {count: 49, period: hour}
+      warn_after: {count: 72, period: hour}
+      error_after: {count: 90, period: hour}
 
     tables:
       - name: sp_patients
