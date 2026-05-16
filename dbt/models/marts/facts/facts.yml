@@ -1,0 +1,63 @@
+version: 2
+
+models:
+  - name: fact_appointments
+    description: "One row per appointment — the central fact table"
+    columns:
+      - name: appointment_key
+        tests: [unique, not_null]
+      - name: appointment_date_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_id
+      - name: practitioner_key
+        tests: [not_null]
+      - name: client_key
+        tests: [not_null]
+      - name: duration_minutes
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 480
+
+  - name: fact_billing
+    description: "One row per invoice — billing and NDIS claims"
+    columns:
+      - name: billing_key
+        tests: [unique, not_null]
+      - name: invoice_date_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_id
+      - name: total_amount
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100000
+
+  - name: fact_payroll
+    description: "One row per payslip"
+    columns:
+      - name: payroll_key
+        tests: [unique, not_null]
+      - name: gross_earnings
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 50000
+
+  - name: fact_leave
+    description: "One row per leave request"
+    columns:
+      - name: leave_key
+        tests: [unique, not_null]
+
+  - name: fact_compliance
+    description: "Practitioner certification compliance snapshot"
+    columns:
+      - name: compliance_key
+        tests: [unique, not_null]

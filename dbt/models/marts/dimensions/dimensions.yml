@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: "Date dimension with Australian financial year fields"
+    columns:
+      - name: date_id
+        tests: [unique, not_null]
+
+  - name: dim_practitioner
+    description: "Conformed practitioner dimension joining Splose and Employment Hero"
+    columns:
+      - name: practitioner_key
+        tests: [unique, not_null]
+      - name: practitioner_id
+        tests: [unique, not_null]
+      - name: discipline
+        tests:
+          - accepted_values:
+              values: ['occupational_therapy', 'physiotherapy', 'speech_pathology',
+                       'psychology', 'social_work', 'dietetics', 'exercise_physiology',
+                       'behaviour_support', 'support_coordination']
+
+  - name: dim_client
+    description: "NDIS participant and private client dimension"
+    columns:
+      - name: client_key
+        tests: [unique, not_null]
+      - name: patient_id
+        tests: [unique, not_null]
+      - name: fund_management
+        tests:
+          - accepted_values:
+              values: ['ndia_managed', 'plan_managed', 'self_managed', 'private']
+
+  - name: dim_location
+    description: "Practice locations"
+    columns:
+      - name: location_key
+        tests: [unique, not_null]
+
+  - name: dim_support_item
+    description: "NDIS support item catalogue"
+    columns:
+      - name: support_item_key
+        tests: [unique, not_null]
+      - name: support_item_number
+        tests: [unique, not_null]

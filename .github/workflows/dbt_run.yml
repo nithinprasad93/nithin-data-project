@@ -1,0 +1,123 @@
+name: dbt Transform
+
+on:
+  # Run 1 hour after seed job (11pm AEST / 13:00 UTC)
+  schedule:
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'dbt target (dev or prod)'
+        required: false
+        default: 'prod'
+      select:
+        description: 'dbt --select expression (e.g. staging or marts.facts)'
+        required: false
+        default: ''
+
+jobs:
+  dbt:
+    name: Run dbt models and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: dbt
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r ../requirements.txt
+
+      - name: Write dbt profiles
+        run: cp profiles.yml ~/.dbt/profiles.yml
+        # profiles.yml reads env vars — no secrets embedded
+
+      - name: Install dbt packages
+        env:
+          SNOWFLAKE_ACCOUNT:  ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER:     ${{ secrets.SNOWFLAKE_USER_TRANSFORMER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD_TRANSFORMER }}
+        run: dbt deps
+
+      - name: dbt source freshness
+        env:
+          SNOWFLAKE_ACCOUNT:  ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER:     ${{ secrets.SNOWFLAKE_USER_TRANSFORMER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD_TRANSFORMER }}
+        run: dbt source freshness --target ${{ github.event.inputs.target || 'prod' }}
+
+      - name: dbt run
+        env:
+          SNOWFLAKE_ACCOUNT:  ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER:     ${{ secrets.SNOWFLAKE_USER_TRANSFORMER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD_TRANSFORMER }}
+        run: |
+          SELECT_ARG=""
+          if [ -n "${{ github.event.inputs.select }}" ]; then
+            SELECT_ARG="--select ${{ github.event.inputs.select }}"
+          fi
+          dbt run --target ${{ github.event.inputs.target || 'prod' }} $SELECT_ARG
+
+      - name: dbt test
+        env:
+          SNOWFLAKE_ACCOUNT:  ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER:     ${{ secrets.SNOWFLAKE_USER_TRANSFORMER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD_TRANSFORMER }}
+        run: dbt test --target ${{ github.event.inputs.target || 'prod' }}
+
+      - name: dbt generate docs
+        env:
+          SNOWFLAKE_ACCOUNT:  ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER:     ${{ secrets.SNOWFLAKE_USER_TRANSFORMER }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD_TRANSFORMER }}
+        run: dbt docs generate --target ${{ github.event.inputs.target || 'prod' }}
+
+      - name: Upload dbt docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs
+          path: dbt/target/
+          retention-days: 7
+
+      - name: Notify Slack on success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":dbt: *dbt run + tests passed*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":x: *dbt run FAILED*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Send email on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          python ../scripts/notify_email.py \
+            --subject "dbt FAILED — $(date +%Y-%m-%d)" \
+            --body "dbt run or test failed. Check GitHub Actions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

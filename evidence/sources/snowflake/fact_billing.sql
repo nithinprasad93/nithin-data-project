@@ -1,0 +1,1 @@
+select * from NDIS_DB.MARTS.FACT_BILLING

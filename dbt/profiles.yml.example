@@ -1,0 +1,32 @@
+# profiles.yml — dbt connection profiles
+# Place this file at ~/.dbt/profiles.yml on your local machine
+# OR reference via DBT_PROFILES_DIR env var in GitHub Actions
+#
+# Never commit real credentials — all secrets come from env vars
+
+ndis_platform:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: NDIS_TRANSFORMER
+      database: NDIS_DB
+      warehouse: NDIS_WH
+      schema: STAGING
+      threads: 4
+      client_session_keep_alive: false
+
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      role: NDIS_TRANSFORMER
+      database: NDIS_DB
+      warehouse: NDIS_WH
+      schema: STAGING
+      threads: 4
+      client_session_keep_alive: false

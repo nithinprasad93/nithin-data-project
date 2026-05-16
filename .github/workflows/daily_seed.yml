@@ -1,0 +1,90 @@
+name: Daily Data Seed
+
+on:
+  schedule:
+    # 10pm AEST (UTC+10) = 12:00 UTC
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: 'Target date (YYYY-MM-DD). Defaults to yesterday.'
+        required: false
+        default: ''
+      backfill_days:
+        description: 'Number of days to backfill (0 = single day)'
+        required: false
+        default: '0'
+
+jobs:
+  seed:
+    name: Seed daily NDIS data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily seeder
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USER:      ${{ secrets.SNOWFLAKE_USER_LOADER }}
+          SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWFLAKE_PASSWORD_LOADER }}
+          SNOWFLAKE_ROLE:      NDIS_LOADER
+          SNOWFLAKE_DATABASE:  NDIS_DB
+          SNOWFLAKE_SCHEMA:    RAW
+          SNOWFLAKE_WAREHOUSE: NDIS_WH
+        run: |
+          DATE_ARG=""
+          BACKFILL_ARG=""
+          if [ -n "${{ github.event.inputs.target_date }}" ]; then
+            DATE_ARG="--date ${{ github.event.inputs.target_date }}"
+          fi
+          if [ "${{ github.event.inputs.backfill_days }}" != "0" ] && [ -n "${{ github.event.inputs.backfill_days }}" ]; then
+            BACKFILL_ARG="--backfill-days ${{ github.event.inputs.backfill_days }}"
+          fi
+          python -m ingestion.seeder.seed_daily $DATE_ARG $BACKFILL_ARG
+
+      - name: Notify Slack on success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":white_check_mark: *Daily seed succeeded*\nDate: ${{ github.event.inputs.target_date || 'yesterday' }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":x: *Daily seed FAILED*\nDate: ${{ github.event.inputs.target_date || 'yesterday' }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Send email on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          python scripts/notify_email.py \
+            --subject "NDIS seed FAILED — $(date +%Y-%m-%d)" \
+            --body "The daily seed job failed. Check GitHub Actions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

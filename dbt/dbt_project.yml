@@ -1,0 +1,49 @@
+name: ndis_platform
+version: '1.0.0'
+config-version: 2
+
+profile: ndis_platform
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+docs-paths: ["docs"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Override in CI or per-environment as needed
+  start_date: '2024-05-01'
+
+models:
+  ndis_platform:
+    staging:
+      +schema: STAGING
+      +materialized: view
+      +tags: ['staging', 'silver']
+
+    intermediate:
+      +schema: INTERMEDIATE
+      +materialized: ephemeral
+      +tags: ['intermediate', 'silver']
+
+    marts:
+      +schema: MARTS
+      +materialized: table
+      +tags: ['marts', 'gold']
+      dimensions:
+        +materialized: table
+        +tags: ['dimension']
+      facts:
+        +materialized: incremental
+        +unique_key: surrogate_key
+        +tags: ['fact']
+
+seeds:
+  ndis_platform:
+    +schema: SEEDS
+    +quote_columns: false

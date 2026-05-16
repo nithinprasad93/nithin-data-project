@@ -1,0 +1,183 @@
+version: 2
+
+sources:
+  - name: employment_hero
+    description: "Raw Employment Hero HR data loaded by the Python ingestion pipeline"
+    database: NDIS_DB
+    schema: RAW
+    loader: python_ingestion
+    loaded_at_field: _LOADED_AT
+    freshness:
+      warn_after: {count: 25, period: hour}
+      error_after: {count: 49, period: hour}
+
+    tables:
+      - name: eh_employees
+        description: "All employees (practitioners and support staff)"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: EMAIL
+            tests: [not_null]
+          - name: STATUS
+            tests:
+              - accepted_values:
+                  values: ['active', 'terminated']
+
+      - name: eh_certifications
+        description: "Employee certifications including NDIS Worker Screening"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: EMPLOYEE_ID
+            tests:
+              - not_null
+              - relationships:
+                  to: source('employment_hero', 'eh_employees')
+                  field: ID
+
+      - name: eh_timesheet_entries
+        description: "Daily timesheet clock-in/out records"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: EMPLOYEE_ID
+            tests: [not_null]
+
+      - name: eh_rostered_shifts
+        description: "Scheduled roster shifts"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+
+      - name: eh_leave_requests
+        description: "Leave requests and approvals"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: STATUS
+            tests:
+              - accepted_values:
+                  values: ['pending', 'approved', 'declined', 'cancelled']
+
+      - name: eh_payslips
+        description: "Fortnightly payslip records"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: EMPLOYEE_ID
+            tests: [not_null]
+
+      - name: eh_teams
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+
+      - name: eh_departments
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+
+  - name: splose
+    description: "Raw Splose Allied Health / NDIS clinical data"
+    database: NDIS_DB
+    schema: RAW
+    loader: python_ingestion
+    loaded_at_field: _LOADED_AT
+    freshness:
+      warn_after: {count: 25, period: hour}
+      error_after: {count: 49, period: hour}
+
+    tables:
+      - name: sp_patients
+        description: "NDIS participants and private clients"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: NDIS_NUMBER
+            tests: [unique]
+          - name: FUND_MANAGEMENT
+            tests:
+              - accepted_values:
+                  values: ['ndia_managed', 'plan_managed', 'self_managed', 'private']
+
+      - name: sp_practitioners
+        description: "Registered Allied Health practitioners"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: DISCIPLINE
+            tests:
+              - accepted_values:
+                  values: ['occupational_therapy', 'physiotherapy', 'speech_pathology',
+                           'psychology', 'social_work', 'dietetics', 'exercise_physiology',
+                           'behaviour_support', 'support_coordination']
+
+      - name: sp_locations
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+
+      - name: sp_appointments
+        description: "All service appointments — scheduled, completed, cancelled, DNA"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: PATIENT_ID
+            tests:
+              - not_null
+              - relationships:
+                  to: source('splose', 'sp_patients')
+                  field: ID
+          - name: PRACTITIONER_ID
+            tests:
+              - not_null
+              - relationships:
+                  to: source('splose', 'sp_practitioners')
+                  field: ID
+          - name: STATUS
+            tests:
+              - accepted_values:
+                  values: ['scheduled', 'completed', 'cancelled', 'dna']
+
+      - name: sp_support_items
+        description: "NDIS catalogue line items linked to appointments"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: APPOINTMENT_ID
+            tests: [not_null]
+
+      - name: sp_invoices
+        description: "Invoices raised against NDIS plans or private billing"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: INVOICE_NUMBER
+            tests: [unique, not_null]
+          - name: STATUS
+            tests:
+              - accepted_values:
+                  values: ['draft', 'sent', 'paid', 'overdue', 'void']
+
+      - name: sp_payments
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+          - name: INVOICE_ID
+            tests:
+              - not_null
+              - relationships:
+                  to: source('splose', 'sp_invoices')
+                  field: ID
+
+      - name: sp_cases
+        description: "NDIS support budget cases per participant per support category"
+        columns:
+          - name: ID
+            tests: [unique, not_null]
+
+      - name: sp_availability
+        columns:
+          - name: ID
+            tests: [unique, not_null]

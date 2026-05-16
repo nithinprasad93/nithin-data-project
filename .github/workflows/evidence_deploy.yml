@@ -1,0 +1,78 @@
+name: Deploy Evidence.dev
+
+on:
+  # Run after dbt job (midnight AEST / 14:00 UTC)
+  schedule:
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'evidence/**'
+
+jobs:
+  deploy:
+    name: Build and deploy Evidence.dev to Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: evidence
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: evidence/package-lock.json
+
+      - name: Install Evidence dependencies
+        run: npm ci
+
+      - name: Build Evidence site
+        env:
+          SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_USERNAME:  ${{ secrets.SNOWFLAKE_USER_REPORTER }}
+          SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWFLAKE_PASSWORD_REPORTER }}
+          SNOWFLAKE_DATABASE:  NDIS_DB
+          SNOWFLAKE_SCHEMA:    MARTS
+          SNOWFLAKE_WAREHOUSE: NDIS_WH
+          SNOWFLAKE_ROLE:      NDIS_REPORTER
+        run: npm run build
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_EVIDENCE }}
+          working-directory: evidence
+          vercel-args: '--prod'
+
+      - name: Notify Slack on success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":chart_with_upwards_trend: *Evidence.dev deployed*\nDashboard updated with today's data.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":x: *Evidence.dev deploy FAILED*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

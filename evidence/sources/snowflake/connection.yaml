@@ -1,0 +1,10 @@
+name: snowflake
+type: snowflake
+options:
+  account: FVGNXPP-RR05620
+  username: SVC_REPORTER
+  database: NDIS_DB
+  warehouse: NDIS_WH
+  role: NDIS_REPORTER
+  schema: MARTS
+  authenticator: userpass
