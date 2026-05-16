@@ -7,9 +7,10 @@ sources:
     schema: RAW
     loader: python_ingestion
     loaded_at_field: _LOADED_AT
-    freshness:
-      warn_after: {count: 72, period: hour}
-      error_after: {count: 90, period: hour}
+    config:
+      freshness:
+        warn_after: {count: 72, period: hour}
+        error_after: {count: 90, period: hour}
 
     tables:
       - name: eh_employees
@@ -45,7 +46,9 @@ sources:
             tests: [not_null]
 
       - name: eh_rostered_shifts
-        description: "Scheduled roster shifts"
+        description: "Scheduled roster shifts — not populated by seeder"
+        config:
+          freshness: null
         columns:
           - name: ID
             tests: [unique, not_null]
@@ -61,7 +64,9 @@ sources:
                   values: ['pending', 'approved', 'declined', 'cancelled']
 
       - name: eh_payslips
-        description: "Fortnightly payslip records"
+        description: "Fortnightly payslip records — not populated by seeder"
+        config:
+          freshness: null
         columns:
           - name: ID
             tests: [unique, not_null]
@@ -84,9 +89,10 @@ sources:
     schema: RAW
     loader: python_ingestion
     loaded_at_field: _LOADED_AT
-    freshness:
-      warn_after: {count: 72, period: hour}
-      error_after: {count: 90, period: hour}
+    config:
+      freshness:
+        warn_after: {count: 72, period: hour}
+        error_after: {count: 90, period: hour}
 
     tables:
       - name: sp_patients
@@ -161,6 +167,9 @@ sources:
                   values: ['draft', 'sent', 'paid', 'overdue', 'void']
 
       - name: sp_payments
+        description: "Invoice payments — not populated by seeder"
+        config:
+          freshness: null
         columns:
           - name: ID
             tests: [unique, not_null]
@@ -178,6 +187,9 @@ sources:
             tests: [unique, not_null]
 
       - name: sp_availability
+        description: "Practitioner availability windows — not populated by seeder"
+        config:
+          freshness: null
         columns:
           - name: ID
             tests: [unique, not_null]
