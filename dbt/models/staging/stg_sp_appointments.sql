@@ -27,6 +27,7 @@ renamed as (
         _loaded_at
     from source
     where id is not null
+    qualify row_number() over (partition by id order by _loaded_at desc) = 1
 )
 
 select * from renamed

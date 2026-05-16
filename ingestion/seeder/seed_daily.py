@@ -228,11 +228,11 @@ def generate_daily_data(target_date: date) -> dict[str, list[dict]]:
 
 def load_to_snowflake(data: dict[str, list[dict]]) -> dict[str, int]:
     table_map = {
-        "appointments":      ("RAW.SP_APPOINTMENTS",      True),
-        "support_items":     ("RAW.SP_SUPPORT_ITEMS",     True),
+        "appointments":      ("RAW.SP_APPOINTMENTS",      False),
+        "support_items":     ("RAW.SP_SUPPORT_ITEMS",     False),
         "invoices":          ("RAW.SP_INVOICES",          False),
-        "payments":          ("RAW.SP_PAYMENTS",          True),
-        "timesheet_entries": ("RAW.EH_TIMESHEET_ENTRIES", True),
+        "payments":          ("RAW.SP_PAYMENTS",          False),
+        "timesheet_entries": ("RAW.EH_TIMESHEET_ENTRIES", False),
         "leave_requests":    ("RAW.EH_LEAVE_REQUESTS",    False),
     }
     counts: dict[str, int] = {}
