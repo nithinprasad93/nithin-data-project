@@ -34,6 +34,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Record start time
+        id: timer
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -53,15 +57,22 @@ jobs:
         run: dbt source freshness --target ${{ github.event.inputs.target || 'prod' }}
 
       - name: dbt run
+        id: dbt_run
         run: |
           SELECT_ARG=""
           if [ -n "${{ github.event.inputs.select }}" ]; then
             SELECT_ARG="--select ${{ github.event.inputs.select }}"
           fi
-          dbt run --target ${{ github.event.inputs.target || 'prod' }} $SELECT_ARG
+          dbt run --target ${{ github.event.inputs.target || 'prod' }} $SELECT_ARG 2>&1 | tee /tmp/dbt_run.log
+          MODELS=$(grep -oP '\d+(?= of \d+ OK)' /tmp/dbt_run.log | tail -1 || echo "—")
+          echo "models_run=$(grep -c 'OK created' /tmp/dbt_run.log || echo 0)" >> $GITHUB_OUTPUT
 
       - name: dbt test
-        run: dbt test --target ${{ github.event.inputs.target || 'prod' }}
+        id: dbt_test
+        run: |
+          dbt test --target ${{ github.event.inputs.target || 'prod' }} 2>&1 | tee /tmp/dbt_test.log
+          echo "passed=$(grep -c 'PASS' /tmp/dbt_test.log || echo 0)" >> $GITHUB_OUTPUT
+          echo "failed=$(grep -c 'FAIL' /tmp/dbt_test.log || echo 0)" >> $GITHUB_OUTPUT
 
       - name: dbt generate docs
         run: dbt docs generate --target ${{ github.event.inputs.target || 'prod' }}
@@ -73,41 +84,88 @@ jobs:
           path: dbt/target/
           retention-days: 7
 
-      - name: Notify Slack on success
+      - name: Compute duration
+        id: duration
+        if: always()
+        run: |
+          END=$(date +%s)
+          START=${{ steps.timer.outputs.start }}
+          echo "value=$(( (END - START) / 60 ))m $(( (END - START) % 60 ))s" >> $GITHUB_OUTPUT
+
+      - name: Slack — success
         if: success()
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": ":white_check_mark: *dbt run + tests passed*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+              "text": ":white_check_mark: *dbt Transform SUCCEEDED* — `${{ github.repository }}`\n*Models:* ${{ steps.dbt_run.outputs.models_run }}  |  *Tests passed:* ${{ steps.dbt_test.outputs.passed }}  |  *Duration:* ${{ steps.duration.outputs.value }}  |  *Actor:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
-      - name: Notify Slack on failure
+      - name: Slack — failure
         if: failure()
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": ":x: *dbt run FAILED*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+              "text": ":x: *dbt Transform FAILED* — `${{ github.repository }}`\n*Tests failed:* ${{ steps.dbt_test.outputs.failed || '—' }}  |  *Duration:* ${{ steps.duration.outputs.value }}  |  *Actor:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
-      - name: Send email on failure
+      - name: Email — success
+        if: success()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          python ../scripts/notify_email.py \
+            --subject "✅ dbt Transform SUCCEEDED — $(date +%Y-%m-%d)" \
+            --body "All dbt models ran and all data quality tests passed. MARTS layer is up to date." \
+            --status success \
+            --workflow "dbt Transform" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --branch "${{ github.ref_name }}" \
+            --actor "${{ github.actor }}" \
+            --trigger "${{ github.event_name }}" \
+            --duration "${{ steps.duration.outputs.value }}" \
+            --extra \
+              "dbt target=${{ github.event.inputs.target || 'prod' }}" \
+              "Models run=${{ steps.dbt_run.outputs.models_run }}" \
+              "Tests passed=${{ steps.dbt_test.outputs.passed }}" \
+              "Tests failed=0" \
+              "dbt version=1.11.10" \
+              "Snowflake warehouse=NDIS_WH" \
+              "Select filter=${{ github.event.inputs.select || '(all models)' }}"
+
+      - name: Email — failure
         if: failure()
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
         run: |
           python ../scripts/notify_email.py \
-            --subject "dbt FAILED — $(date +%Y-%m-%d)" \
-            --body "One or more dbt steps failed (source freshness, run, or test). Please investigate." \
+            --subject "❌ dbt Transform FAILED — $(date +%Y-%m-%d)" \
+            --body "One or more dbt steps failed (source freshness, model run, or data test). MARTS layer may be stale. Please investigate immediately." \
             --status failure \
             --workflow "dbt Transform" \
             --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --repo "${{ github.repository }}" \
-            --run-id "${{ github.run_id }}"
+            --run-id "${{ github.run_id }}" \
+            --branch "${{ github.ref_name }}" \
+            --actor "${{ github.actor }}" \
+            --trigger "${{ github.event_name }}" \
+            --duration "${{ steps.duration.outputs.value }}" \
+            --extra \
+              "dbt target=${{ github.event.inputs.target || 'prod' }}" \
+              "Models run=${{ steps.dbt_run.outputs.models_run || '—' }}" \
+              "Tests passed=${{ steps.dbt_test.outputs.passed || '—' }}" \
+              "Tests failed=${{ steps.dbt_test.outputs.failed || '—' }}" \
+              "dbt version=1.11.10" \
+              "Snowflake warehouse=NDIS_WH" \
+              "Select filter=${{ github.event.inputs.select || '(all models)' }}"

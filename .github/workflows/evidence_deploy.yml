@@ -18,29 +18,104 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
+      - name: Record start time
+        id: timer
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Trigger Vercel deploy hook
         run: curl -s -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
 
-      - name: Notify Slack on success
+      - name: Compute duration
+        id: duration
+        if: always()
+        run: |
+          END=$(date +%s)
+          START=${{ steps.timer.outputs.start }}
+          echo "value=$(( (END - START) / 60 ))m $(( (END - START) % 60 ))s" >> $GITHUB_OUTPUT
+
+      - name: Slack — success
         if: success()
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": ":chart_with_upwards_trend: *Evidence.dev deploy triggered*\nDashboard will update shortly.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+              "text": ":chart_with_upwards_trend: *Evidence.dev Deploy TRIGGERED* — `${{ github.repository }}`\nVercel is rebuilding the dashboard with today's data.  |  *Actor:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 
-      - name: Notify Slack on failure
+      - name: Slack — failure
         if: failure()
         uses: slackapi/slack-github-action@v1.26.0
         with:
           payload: |
             {
-              "text": ":x: *Evidence.dev deploy FAILED*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+              "text": ":x: *Evidence.dev Deploy FAILED* — `${{ github.repository }}`\nFailed to trigger Vercel deploy hook.  |  *Actor:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+      - name: Checkout
+        if: always()
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: always()
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install notify dependencies
+        if: always()
+        run: pip install resend
+
+      - name: Email — success
+        if: success()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          python scripts/notify_email.py \
+            --subject "✅ Evidence.dev Deploy TRIGGERED — $(date +%Y-%m-%d)" \
+            --body "The Vercel deploy hook was triggered successfully. The Evidence.dev dashboard will be rebuilt with today's Snowflake data shortly." \
+            --status success \
+            --workflow "Deploy Evidence.dev" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --branch "${{ github.ref_name }}" \
+            --actor "${{ github.actor }}" \
+            --trigger "${{ github.event_name }}" \
+            --duration "${{ steps.duration.outputs.value }}" \
+            --extra \
+              "Deploy target=Vercel (Production)" \
+              "Data source=Snowflake MARTS" \
+              "Dashboard=Evidence.dev" \
+              "Triggered by=dbt Transform success"
+
+      - name: Email — failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+        run: |
+          python scripts/notify_email.py \
+            --subject "❌ Evidence.dev Deploy FAILED — $(date +%Y-%m-%d)" \
+            --body "Failed to trigger the Vercel deploy hook. The dashboard may be showing stale data. Check the VERCEL_DEPLOY_HOOK_URL secret is set correctly." \
+            --status failure \
+            --workflow "Deploy Evidence.dev" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}" \
+            --branch "${{ github.ref_name }}" \
+            --actor "${{ github.actor }}" \
+            --trigger "${{ github.event_name }}" \
+            --duration "${{ steps.duration.outputs.value }}" \
+            --extra \
+              "Deploy target=Vercel (Production)" \
+              "Data source=Snowflake MARTS" \
+              "Dashboard=Evidence.dev" \
+              "Likely cause=Invalid or missing VERCEL_DEPLOY_HOOK_URL secret"
