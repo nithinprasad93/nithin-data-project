@@ -83,6 +83,7 @@ jobs:
 
       - name: Deploy dbt docs to GitHub Pages
         run: |
+          echo "CWD: $(pwd)" && ls
           cd target
           git init
           git config user.name "github-actions[bot]"
