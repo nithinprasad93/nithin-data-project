@@ -1,14 +1,15 @@
 name: Deploy Evidence.dev
 
 on:
-  # Run after dbt job (midnight AEST / 14:00 UTC)
+  # Run after dbt job (midnight AEST / 14:00 UTC), weekdays only
   schedule:
-    - cron: '0 14 * * *'
+    - cron: '0 14 * * 1-5'
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - 'evidence/**'
+      - 'evidence/pages/**'
+      - 'evidence/sources/**'
 
 jobs:
   deploy:
@@ -33,15 +34,20 @@ jobs:
       - name: Install Evidence dependencies
         run: npm ci
 
-      - name: Build Evidence site
+      - name: Pull data from Snowflake
         env:
-          SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOWFLAKE_USERNAME:  ${{ secrets.SNOWFLAKE_USER_REPORTER }}
-          SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWFLAKE_PASSWORD_REPORTER }}
-          SNOWFLAKE_DATABASE:  NDIS_DB
-          SNOWFLAKE_SCHEMA:    MARTS
-          SNOWFLAKE_WAREHOUSE: NDIS_WH
-          SNOWFLAKE_ROLE:      NDIS_REPORTER
+          # Evidence reads credentials via this naming convention
+          EVIDENCE_SOURCE__SNOWFLAKE__account:    ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          EVIDENCE_SOURCE__SNOWFLAKE__username:   ${{ secrets.SNOWFLAKE_USER_REPORTER }}
+          EVIDENCE_SOURCE__SNOWFLAKE__password:   ${{ secrets.SNOWFLAKE_PASSWORD_REPORTER }}
+          EVIDENCE_SOURCE__SNOWFLAKE__database:   NDIS_DB
+          EVIDENCE_SOURCE__SNOWFLAKE__schema:     MARTS
+          EVIDENCE_SOURCE__SNOWFLAKE__warehouse:  NDIS_WH
+          EVIDENCE_SOURCE__SNOWFLAKE__role:       NDIS_REPORTER
+          EVIDENCE_SOURCE__SNOWFLAKE__authenticator: userpass
+        run: npm run sources
+
+      - name: Build Evidence site
         run: npm run build
 
       - name: Deploy to Vercel

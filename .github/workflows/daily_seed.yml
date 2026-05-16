@@ -2,8 +2,8 @@ name: Daily Data Seed
 
 on:
   schedule:
-    # 10pm AEST (UTC+10) = 12:00 UTC
-    - cron: '0 12 * * *'
+    # 10pm AEST (UTC+10) = 12:00 UTC, weekdays only
+    - cron: '0 12 * * 1-5'
   workflow_dispatch:
     inputs:
       target_date:
@@ -21,6 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    env:
+      SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER:      ${{ secrets.SNOWFLAKE_USER_LOADER }}
+      SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWFLAKE_PASSWORD_LOADER }}
+      SNOWFLAKE_ROLE:      NDIS_LOADER
+      SNOWFLAKE_DATABASE:  NDIS_DB
+      SNOWFLAKE_SCHEMA:    RAW
+      SNOWFLAKE_WAREHOUSE: NDIS_WH
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,15 +44,6 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run daily seeder
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SNOWFLAKE_ACCOUNT:   ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOWFLAKE_USER:      ${{ secrets.SNOWFLAKE_USER_LOADER }}
-          SNOWFLAKE_PASSWORD:  ${{ secrets.SNOWFLAKE_PASSWORD_LOADER }}
-          SNOWFLAKE_ROLE:      NDIS_LOADER
-          SNOWFLAKE_DATABASE:  NDIS_DB
-          SNOWFLAKE_SCHEMA:    RAW
-          SNOWFLAKE_WAREHOUSE: NDIS_WH
         run: |
           DATE_ARG=""
           BACKFILL_ARG=""
@@ -78,13 +78,3 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-
-      - name: Send email on failure
-        if: failure()
-        env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
-        run: |
-          python scripts/notify_email.py \
-            --subject "NDIS seed FAILED — $(date +%Y-%m-%d)" \
-            --body "The daily seed job failed. Check GitHub Actions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
