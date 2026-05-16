@@ -64,15 +64,17 @@ jobs:
             SELECT_ARG="--select ${{ github.event.inputs.select }}"
           fi
           dbt run --target ${{ github.event.inputs.target || 'prod' }} $SELECT_ARG 2>&1 | tee /tmp/dbt_run.log
-          MODELS=$(grep -oP '\d+(?= of \d+ OK)' /tmp/dbt_run.log | tail -1 || echo "—")
-          echo "models_run=$(grep -c 'OK created' /tmp/dbt_run.log || echo 0)" >> $GITHUB_OUTPUT
+          MODELS_RUN=$(grep -c 'OK created' /tmp/dbt_run.log) || MODELS_RUN=0
+          echo "models_run=${MODELS_RUN}" >> $GITHUB_OUTPUT
 
       - name: dbt test
         id: dbt_test
         run: |
           dbt test --target ${{ github.event.inputs.target || 'prod' }} 2>&1 | tee /tmp/dbt_test.log
-          echo "passed=$(grep -c 'PASS' /tmp/dbt_test.log || echo 0)" >> $GITHUB_OUTPUT
-          echo "failed=$(grep -c 'FAIL' /tmp/dbt_test.log || echo 0)" >> $GITHUB_OUTPUT
+          PASSED=$(grep -c ' PASS ' /tmp/dbt_test.log) || PASSED=0
+          FAILED=$(grep -c ' FAIL ' /tmp/dbt_test.log) || FAILED=0
+          echo "passed=${PASSED}" >> $GITHUB_OUTPUT
+          echo "failed=${FAILED}" >> $GITHUB_OUTPUT
 
       - name: dbt generate docs
         run: dbt docs generate --target ${{ github.event.inputs.target || 'prod' }}
