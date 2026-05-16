@@ -82,9 +82,8 @@ jobs:
         run: dbt docs generate --target ${{ github.event.inputs.target || 'prod' }}
 
       - name: Deploy dbt docs to GitHub Pages
+        working-directory: ${{ github.workspace }}/dbt/target
         run: |
-          echo "CWD: $(pwd)" && ls
-          cd target
           git init
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
