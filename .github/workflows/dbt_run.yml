@@ -105,4 +105,9 @@ jobs:
         run: |
           python ../scripts/notify_email.py \
             --subject "dbt FAILED — $(date +%Y-%m-%d)" \
-            --body "dbt run or test failed. Check GitHub Actions: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            --body "One or more dbt steps failed (source freshness, run, or test). Please investigate." \
+            --status failure \
+            --workflow "dbt Transform" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --repo "${{ github.repository }}" \
+            --run-id "${{ github.run_id }}"
