@@ -15,7 +15,7 @@ def main() -> None:
     to_email = os.environ["NOTIFY_EMAIL"]
 
     resend.Emails.send({
-        "from": "onboarding@resend.dev",
+        "from": "me@nithin-prasad-portfolio.digital",
         "to": to_email,
         "subject": args.subject,
         "text": args.body,
