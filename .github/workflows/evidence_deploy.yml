@@ -1,9 +1,9 @@
 name: Deploy Evidence.dev
 
 on:
-  # Run after dbt job (midnight AEST / 14:00 UTC), weekdays only
-  schedule:
-    - cron: '0 14 * * 1-5'
+  workflow_run:
+    workflows: ["dbt Transform"]
+    types: [completed]
   workflow_dispatch:
   push:
     branches: [main]
@@ -15,6 +15,7 @@ jobs:
   deploy:
     name: Build and deploy Evidence.dev to Vercel
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     timeout-minutes: 20
     defaults:
       run:
