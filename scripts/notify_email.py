@@ -15,7 +15,7 @@ def main() -> None:
     to_email = os.environ["NOTIFY_EMAIL"]
 
     resend.Emails.send({
-        "from": "noreply@notifications.horizonalliedhealth.com.au",
+        "from": "onboarding@resend.dev",
         "to": to_email,
         "subject": args.subject,
         "text": args.body,
