@@ -83,7 +83,7 @@ jobs:
 
       - name: Deploy dbt docs to GitHub Pages
         run: |
-          cd dbt/target
+          cd target
           git init
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
