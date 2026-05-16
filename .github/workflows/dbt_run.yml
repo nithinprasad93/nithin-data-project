@@ -79,12 +79,13 @@ jobs:
       - name: dbt generate docs
         run: dbt docs generate --target ${{ github.event.inputs.target || 'prod' }}
 
-      - name: Upload dbt docs artifact
-        uses: actions/upload-artifact@v4
+      - name: Deploy dbt docs to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          name: dbt-docs
-          path: dbt/target/
-          retention-days: 7
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dbt/target
+          destination_dir: dbt-docs
+          commit_message: "docs: update dbt docs [${{ github.run_id }}]"
 
       - name: Compute duration
         id: duration
@@ -100,7 +101,7 @@ jobs:
         with:
           payload: |
             {
-              "text": ":white_check_mark: *dbt Transform SUCCEEDED* — `${{ github.repository }}`\n*Models:* ${{ steps.dbt_run.outputs.models_run }}  |  *Tests passed:* ${{ steps.dbt_test.outputs.passed }}  |  *Duration:* ${{ steps.duration.outputs.value }}  |  *Actor:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+              "text": ":white_check_mark: *dbt Transform SUCCEEDED* — `${{ github.repository }}`\n*Models:* ${{ steps.dbt_run.outputs.models_run }}  |  *Tests passed:* ${{ steps.dbt_test.outputs.passed }}  |  *Duration:* ${{ steps.duration.outputs.value }}  |  *Actor:* ${{ github.actor }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>  |  <https://nithinprasad93.github.io/nithin-data-project/dbt-docs|dbt Docs>"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -143,7 +144,8 @@ jobs:
               "Tests failed=0" \
               "dbt version=1.11.10" \
               "Snowflake warehouse=NDIS_WH" \
-              "Select filter=${{ github.event.inputs.select || '(all models)' }}"
+              "Select filter=${{ github.event.inputs.select || '(all models)' }}" \
+              "dbt Docs=https://nithinprasad93.github.io/nithin-data-project/dbt-docs"
 
       - name: Email — failure
         if: failure()
