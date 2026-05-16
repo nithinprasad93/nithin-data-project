@@ -7,11 +7,17 @@
     )
 }}
 
-with appointments as (
+with appointments_raw as (
     select * from {{ ref('stg_sp_appointments') }}
     {% if is_incremental() %}
         where _loaded_at > (select max(_loaded_at) from {{ this }})
     {% endif %}
+),
+
+-- Deduplicate: keep the most recently loaded row per appointment_id
+appointments as (
+    select * from appointments_raw
+    qualify row_number() over (partition by appointment_id order by _loaded_at desc) = 1
 ),
 
 practitioners as (
