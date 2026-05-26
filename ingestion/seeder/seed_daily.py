@@ -3,7 +3,7 @@ Daily seeder — generates one day of realistic NDIS operational data using Fake
 Fast, free, and reliable. No Claude API calls.
 
 Run:
-    python -m ingestion.seeder.seed_daily [--date YYYY-MM-DD]
+    python -m ingestion.seeder.seed_daily [--date YYYY-MM-DD]  # defaults to today
     python -m ingestion.seeder.seed_daily --backfill-days 30
 """
 
@@ -254,12 +254,12 @@ def load_to_snowflake(data: dict[str, list[dict]]) -> dict[str, int]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Daily NDIS data seeder")
-    parser.add_argument("--date", default=None, help="Target date YYYY-MM-DD (default: yesterday)")
+    parser.add_argument("--date", default=None, help="Target date YYYY-MM-DD (default: today)")
     parser.add_argument("--backfill-days", type=int, default=0,
                         help="Backfill N days ending on --date")
     args = parser.parse_args()
 
-    target = date.fromisoformat(args.date) if args.date else date.today() - timedelta(days=1)
+    target = date.fromisoformat(args.date) if args.date else date.today()
 
     if args.backfill_days > 0:
         current = target - timedelta(days=args.backfill_days - 1)
